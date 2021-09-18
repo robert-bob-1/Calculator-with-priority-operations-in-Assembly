@@ -1,0 +1,375 @@
+.386
+.model flat, stdcall
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;includem biblioteci, si declaram ce functii vrem sa importam
+includelib msvcrt.lib
+extern exit: proc
+extern printf: proc
+extern scanf: proc
+extern sscanf: proc
+extern strcmp: proc
+extern strlen: proc
+extern atoi: proc
+extern puts: proc
+extern strcmp: proc
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;declaram simbolul start ca public - de acolo incepe executia
+public start
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;sectiunile programului, date, respectiv cod
+.data
+exittext DB "exit",0
+mesaj DB "Introduceti o expresie:",0
+format	DB "%s", 0
+formatd	DB "nr e %d", 0
+formataf DB "rezultat %d",13,10, 0
+
+ecuatie DB 50 dup(0)
+lecuatie DD ?
+
+c1 DB ?
+TMUL1 DD ?
+TMUL2 DD ?
+
+;var pt convertire din string in int
+stringnumar DB 10 dup('i')
+indexs1 DB 0
+
+;var pt calcule
+semn1 DB 'i'
+semn2 DB 'i'
+termen1 DD 0
+termen2 DD 0
+termen3 DD 0
+termenaux DD 0
+;prioritati conditii
+prioritate DB 0
+primaoperatie DB 0
+egal DB 0
+safacutprimaop DB 0
+conditie1 DB 0
+.code
+
+
+adunare proc  ;functioneaza
+	push ebp
+	mov ebp, esp ; pregatim stack frame-ul
+	mov eax, [ebp+12] ; citim primul termen
+	mov ebx, [ebp+8]  ;al doilea termen
+	add eax,ebx
+  ;final:
+	mov esp, ebp
+	pop ebp
+	ret 8 ; salt inapoi la adresa de return, si curata parametrii de pe stiva
+adunare endp
+
+scadere proc  ;functioneaza
+	push ebp
+	mov ebp, esp ; pregatim stack frame-ul
+	mov eax, [ebp+12] ; citim primul termen
+	mov ebx, [ebp+8]  ;al doilea termen
+	sub eax,ebx
+ ; final:
+	mov esp, ebp
+	pop ebp
+	ret 8 ; salt inapoi la adresa de return, si curata parametrii de pe stiva
+scadere endp
+
+inmultire proc  ;functioneaza
+	push ebp
+	mov ebp, esp ; pregatim stack frame-ul
+	sub esp, 4 ; facem loc pe stiva pentru o variabila
+	mov EAX, [ebp+12] ; citim primul termen
+	mov EBX, [ebp+8]  ;al doilea termen
+
+	MOV TMUL1,EAX
+	MOV TMUL2,EBX
+	FINIT
+	FILD TMUL1
+	FIMUL TMUL2
+	FISTP TMUL1
+	MOV EAX, TMUL1
+	
+ ; final:
+	mov esp, ebp
+	pop ebp
+	ret 8 ; salt inapoi la adresa de return, si curata parametrii de pe stiva
+inmultire endp
+
+impartire proc  ;functioneaza
+	push ebp
+	mov ebp, esp ; pregatim stack frame-ul
+	sub esp, 4 ; facem loc pe stiva pentru o variabila
+	mov EAX, [ebp+12] ; citim primul termen
+	mov EBX, [ebp+8]  ;al doilea termen
+
+	xor edx, edx   ;impartirea cu stiva da uneori rezultat gresit si nu a mers aici de ex la 30/8 da rezultat 4
+	div ebx
+	; MOV TMUL1,EAX
+	; MOV TMUL2,EBX
+	; FINIT
+	; FILD TMUL1
+	; FIDIV TMUL2
+	; FISTP TMUL1
+	; MOV EAX, TMUL1
+ ; final:
+	mov esp, ebp
+	pop ebp
+	ret 8 ; salt inapoi la adresa de return, si curata parametrii de pe stiva
+impartire endp
+
+golire_stringnumar proc 
+	push ebp
+	mov ebp, esp ; pregatim stack frame-ul
+	mov ecx,9
+	golire1:
+    	mov stringnumar[ecx],'i'
+		dec ecx
+		cmp ecx,0
+	    jge golire1
+	xor edi,edi
+  ;final:	
+	mov esp, ebp
+	pop ebp
+	ret 0 ; salt inapoi la adresa de return, si curata parametrii de pe stiva
+golire_stringnumar endp
+    
+adaugam_lastringnumar proc
+    push ebp
+	mov ebp, esp ; pregatim stack frame-ul
+	
+	xor eax,eax
+    mov al,ecuatie[esi]
+    mov stringnumar[edi],al
+	inc edi
+	inc esi
+	
+ ; final:
+	mov esp, ebp
+	pop ebp
+	ret 0 
+adaugam_lastringnumar endp  	
+
+comp_si_calc proc    ;functie functionala
+    push ebp
+	mov ebp, esp ; pregatim stack frame-ul
+	sub esp, 4 ; facem loc pe stiva pentru o variabila
+	mov CL, [ebp+16] ;citim semnul
+	mov EAX, [ebp+12] ; citim primul termen
+	mov EBX, [ebp+8]  ;al doilea termen
+	 
+	cmp cl,'*'
+    je inmultim
+	cmp cl,'+'
+	je adunam
+	cmp cl,'-'
+    je scadem
+	jmp impartim
+
+    inmultim:
+	    push eax
+		push ebx
+		call inmultire
+		jmp final
+	impartim:
+	    push eax
+		push ebx
+		call impartire
+		jmp final
+	adunam:
+	    push eax
+		push ebx
+		call adunare
+		jmp final
+	scadem:
+	    push eax
+		push ebx
+		call scadere
+		jmp final
+  final:
+	mov esp, ebp
+	pop ebp
+	ret 12
+comp_si_calc endp
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+start:
+    inc primaoperatie
+    ;citim ecuatia 
+	push offset mesaj
+	call puts
+	add esp,4
+	
+    push offset ecuatie
+	push offset format
+	call scanf
+	add esp, 8
+	
+	push offset exittext    ;conditie pt exit
+	push offset ecuatie
+	call strcmp
+	cmp eax,0
+	je exit1                ;pana aici
+	
+	mov conditie1,0
+	cmp ecuatie[0],'0'      ;conditia ca sa poata calcula cu ultimul rezultat ca primul termen cand acesta nu se da
+	jl conditietermen1
+	jmp nuconditietermen1
+	conditietermen1:
+	    inc conditie1
+	nuconditietermen1:
+	
+	mov esi,0
+	mov edi,0
+
+evaluam_expresia:  
+    cmp ecuatie[esi],'='   ;comparam cu egal prima data ca sa sarim direct la calculul final
+	je calculare_rezultat
+
+    cmp ecuatie[esi],'0'   ;aici verificam daca se citeste un numar trebuie creat un numar nou
+	jl semne
+	call adaugam_lastringnumar
+	jmp evaluam_expresia
+	semne:
+	    push offset stringnumar  ;facem operatiile pe string numar inainte de conditii ca sa nu se repete
+        call atoi		         ;   in cod de foarte multe ori apelul acestor functii
+        call golire_stringnumar  ;pregatim stringnumar pentru urmatorul numar si resetam edi indexul care arata
+		                         ;   catre ultima pozitie din string numar  
+								 
+	    cmp primaoperatie,1      ;avem nevoie de un caz special pentru prima operatie pentru a crea primul termen si
+		je prima_operatie        ;   primul semn
+		
+	    cmp prioritate,1
+		je prioritate1
+		
+	    prioritate0:             ;daca nu se pune problema prioritatii semnelor
+	        mov termen2,eax      ;cream termen2 (este necesar, orice semn ar fi in acest caz)
+			
+			cmp egal,1
+			je calcprioritate0
+			cmp semn1,'*'
+			je calcprioritate0
+
+			cmp semn1,'/'
+			je calcprioritate0
+			                     ;altfel daca semn1 e plus sau minus trebuie sa consideram posibila prioritate
+								 ;  de calcul daca apare inmultire sau impartire ca al doilea semn
+			cmp ecuatie[esi],'+'
+			je calcprioritate0
+			cmp ecuatie[esi],'-'
+			je calcprioritate0         ;altfel trebuie sa luam in considerare prioritatea si sa mai citim prin sir
+			                     ; termenul 3 si sa aflam cand putem sa nu mai calculam
+	        mov al,ecuatie[esi]  ;mutam al doilea semn in semn1 pt ca am efectuat calculul cu semn1
+			mov semn2, al
+			inc prioritate
+			inc esi
+			jmp evaluam_expresia
+			
+			calcprioritate0:
+			    movzx ecx,semn1
+				push ecx
+				push termen1
+				push termen2
+				call comp_si_calc
+				
+				mov termen1,eax
+				
+				mov al,ecuatie[esi]  ;mutam al doilea semn in semn1 pt ca am efectuat calculul cu semn1
+			    mov semn1, al
+				inc esi
+				
+				cmp egal,1
+				je afisare_rezultat
+				jmp evaluam_expresia
+			    
+				
+	    prioritate1:
+		    mov termen3,eax
+			cmp egal,1
+			je calcprioritate12
+		    cmp ecuatie[esi],'*'   ;daca al 3-lea semn nu e plus/minus atunci doar calculam inmultirea/impartirea
+			je calcprioritate11
+			cmp ecuatie[esi],'/'
+			je calcprioritate11
+			                       ;daca al 3-lea semn este plus/minus trb sa facem operatia si cu semn2 si cu semn1
+								   ;  si sa revenim la calcul de tip prioritate0
+			jmp calcprioritate12
+			
+			calcprioritate11:
+			    movzx ecx,semn2
+				push ecx
+				push termen2
+				push termen3
+				call comp_si_calc
+				
+				mov termen2,eax
+				
+				mov al,ecuatie[esi]  ;mutam al 3-lea semn in semn2 pt ca am efectuat calculul cu semn2
+			    mov semn2, al
+				inc esi
+				jmp evaluam_expresia
+			
+			calcprioritate12:      ;daca avem expr de tipu  "x+y*z+"  obtinem  "x1+"
+			    movzx ecx,semn2
+				push ecx
+				push termen2
+				push termen3
+				call comp_si_calc
+				
+				mov termen2,eax
+				
+				movzx ecx,semn1
+				push ecx
+				push termen1
+				push termen2
+				call comp_si_calc
+				
+				mov termen1,eax
+				
+				mov al,ecuatie[esi]  ;mutam al doilea semn in semn1 pt ca am efectuat calculul cu semn1
+			    mov semn1, al
+				inc esi
+				dec prioritate
+				
+				cmp egal,1
+				je afisare_rezultat
+				
+				jmp evaluam_expresia
+		prima_operatie:
+		    dec primaoperatie
+			
+			cmp conditie1,0
+			je creazatermen1
+			mov eax,termenaux
+			mov termen1,eax
+			jmp nucreatermen1
+		  creazatermen1:
+			mov termen1, eax
+		  nucreatermen1:
+		    
+			mov al,ecuatie[esi]
+			mov semn1, al
+			inc esi
+			jmp evaluam_expresia
+			
+calculare_rezultat:
+         inc egal
+		 jmp semne
+		 
+	     afisare_rezultat:
+		     dec egal
+			 mov prioritate,0
+			 mov eax,termen1
+			 mov termenaux,eax
+			 
+		     push termen1
+			 push offset formataf
+			 call printf
+			 jmp start
+exit1:	
+    push 0
+	call exit
+end start
